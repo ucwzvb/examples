@@ -1,0 +1,21 @@
+//沪深300指数导入
+login("admin","123456")
+
+def createDB(dbName,tableName){	
+	if(existsDatabase(dbName))
+		dropDatabase(dbName)
+	dbDate = database("", VALUE, 2018.01.01..2018.12.31)
+	dbSymbol=database("", HASH, [SYMBOL, 4])
+	db = database(dbName, COMPO, [dbDate, dbSymbol])	
+	columns = `order_book_id`datetime`trading_date`open`last`high`low`prev_settlement`prev_close`volume`open_interest`total_turnover`limit_up`limit_down`a1`a2`a3`a4`a5`b1`b2`b3`b4`b5`a1_v`a2_v`a3_v`a4_v`a5_v`b1_v`b2_v`b3_v`b4_v`b5_v`change_rate
+	type = [SYMBOL,DATETIME,DATE]<-take(DOUBLE,32)
+	orderData = table(1:0, columns,type)
+	db.createPartitionedTable(orderData, tableName,`datetime`order_book_id)
+}
+
+if (existsDatabase("dfs://hs_300"))
+{
+	dropDatabase("dfs://hs_300")
+}
+
+create database "dfs://sh_entrust" partitioned by VALUE(2022.01.01..2022.01.03), HASH([SYMBOL, 10]), engine='TSDB'

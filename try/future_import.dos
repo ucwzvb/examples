@@ -1,0 +1,116 @@
+// 非并行导入数据 53.6s
+login("admin","123456")
+
+def createDB(dbName,tableName){	
+	if(existsDatabase(dbName))
+		dropDatabase(dbName)
+	dbDate = database("", VALUE, 2018.01.01..2018.12.31)
+	dbSymbol=database("", HASH, [SYMBOL, 4])
+	db = database(dbName, COMPO, [dbDate, dbSymbol])	
+	columns = `order_book_id`datetime`trading_date`open`last`high`low`prev_settlement`prev_close`volume`open_interest`total_turnover`limit_up`limit_down`a1`a2`a3`a4`a5`b1`b2`b3`b4`b5`a1_v`a2_v`a3_v`a4_v`a5_v`b1_v`b2_v`b3_v`b4_v`b5_v`change_rate
+	type = [SYMBOL,DATETIME,DATE]<-take(DOUBLE,32)
+	orderData = table(1:0, columns,type)
+	db.createPartitionedTable(orderData, tableName,`datetime`order_book_id)
+}
+
+dbName = "dfs://futures_orderbook"
+tableName = "orderBook"
+createDB(dbName,tableName)
+
+def getSchema(csv){
+	schema1=extractTextSchema(csv)
+	return schema1
+}
+
+
+def loadOneFile(csvFile,orderbooktb,schema1){
+	t = loadText(csvFile,,schema1)
+    t.reorderColumns!(orderbooktb.schema().colDefs[`name])
+	return t
+}
+
+def loadOneDayFiles(dbName,tableName,path,schema1){
+	tb = loadTable(dbName,tableName)
+	fileList = exec filename from files(path, "%.csv")
+	for(f in fileList){
+		bigTable=table(500000:0,tb.schema().colDefs[`name],tb.schema().colDefs[`typeString])
+		bigTable.append!(loadOneFile(path+"/"+f,bigTable,schema1))
+		tb.append!(bigTable)
+		}
+	}
+
+
+def loopLoadOneYearFiles(dbName,tableName, filePath,schema1){
+	dirs = exec filename from files(filePath) where isDir=true
+	for (path in dirs){
+		loadOneDayFiles(dbName,tableName,filePath+"/"+path,schema1)
+	}
+}
+csv = "E:/market_date/IC_full/2018-01-02/IC1801.csv"
+dbName = "dfs://futures_orderbook"
+tableName = "orderBook"
+filePath = "E:/market_date/IC_full"
+
+schema1=getSchema(csv)
+loopLoadOneYearFiles(dbName,tableName, filePath,schema1)
+
+//并行导入 41ms value分区 1.3s
+
+def createDB(dbName,tableName){	
+	if(existsDatabase(dbName))
+		dropDatabase(dbName)
+	dbDate = database("", VALUE, 2018.01.01..2018.12.31)
+	dbSymbol=database("", VALUE, `IC1801`IC1802`IC1803`IC1804)
+	db = database(dbName, COMPO, [dbDate, dbSymbol])	
+	columns = `order_book_id`datetime`trading_date`open`last`high`low`prev_settlement`prev_close`volume`open_interest`total_turnover`limit_up`limit_down`a1`a2`a3`a4`a5`b1`b2`b3`b4`b5`a1_v`a2_v`a3_v`a4_v`a5_v`b1_v`b2_v`b3_v`b4_v`b5_v`change_rate
+	type = [SYMBOL,DATETIME,DATE]<-take(DOUBLE,32)
+	orderData = table(1:0, columns,type)
+	db.createPartitionedTable(orderData, tableName,`datetime`order_book_id)
+}
+
+dbName = "dfs://futures_orderbook"
+tableName = "orderBook"
+createDB(dbName,tableName)
+
+def getSchema(csv){
+	schema1=extractTextSchema(csv)
+	return schema1
+}
+
+
+def loadOneFile(csvFile,orderbooktb,schema1){
+	t = loadText(csvFile,,schema1)
+    t.reorderColumns!(orderbooktb.schema().colDefs[`name])
+	return t
+}
+
+def loadOneDayFiles(dbName,tableName,path,schema1){
+	tb = loadTable(dbName,tableName)
+	fileList = exec filename from files(path, "%.csv")
+	for(f in fileList){
+		bigTable=table(500000:0,tb.schema().colDefs[`name],tb.schema().colDefs[`typeString])
+		bigTable.append!(loadOneFile(path+"/"+f,bigTable,schema1))
+		tb.append!(bigTable)
+		}
+	}
+
+
+def loopLoadOneYearFiles(dbName,tableName, filePath,schema1){
+	dirs = exec filename from files(filePath) where isDir=true
+	for (path in dirs){
+		submitJob("new"+path.regexReplace("-","")$INT,"loadOrderDir"+path,loadOneDayFiles{dbName,tableName,filePath+"/"+path,schema1})
+	}
+}
+csv = "E:/market_date/IC_full/2018-01-02/IC1801.csv"
+dbName = "dfs://futures_orderbook"
+tableName = "orderBook"
+filePath = "E:/market_date/IC_full"
+
+schema1=getSchema(csv)
+loopLoadOneYearFiles(dbName,tableName, filePath,schema1)
+
+//增加
+
+
+
+

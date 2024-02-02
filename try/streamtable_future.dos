@@ -1,0 +1,22 @@
+
+// 流计算
+// 建立共享流表 发布订阅
+
+share streamTable(10000:0,`timestamp`temperature, [TIMESTAMP,DOUBLE]) as pubTable
+
+tradesData = loadText(yourDIR + "sampleTrades1.csv")
+
+//定义流数据表Trade
+x=tradesData.schema().colDefs
+share streamTable(100:0, x.name, x.typeString) as Trade
+
+//定义OHLC输出表
+share streamTable(100:0, `datetime`symbol`open`high`low`close`volume`updatetime,[TIMESTAMP,SYMBOL,DOUBLE,DOUBLE,DOUBLE,DOUBLE,LONG,TIMESTAMP]) as OHLC
+
+//定义实时聚合引擎：每分钟计算过去5分钟K线
+tsAggrOHLC = createTimeSeriesAggregator(name="aggr_ohlc", windowSize=300000, step=60000, metrics=<[first(Price),max(Price),min(Price),last(Price),sum(Volume),now()]>, dummyTable=Trade, outputTable=OHLC, timeColumn=`Datetime, keyColumn=`Symbol)
+
+//订阅流数据写入聚合引擎
+subscribeTable(tableName="Trade", actionName="minuteOHLC1", offset=0, handler=append!{tsAggrOHLC}, msgAsTable=true)
+
+replay(inputTables=tradesData, outputTables=Trade, dateColumn=`Datetime)

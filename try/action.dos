@@ -1,0 +1,56 @@
+
+//数据增加
+dbName = "dfs://futures_orderbook"
+tableName = "orderBook"
+tb = loadTable(dbName,tableName)
+
+tmp = select * from tb limit 1
+append!(t,tmp)
+tableInsert(t,tmp)
+
+
+//数据更新
+
+dbName = "dfs://futures_orderbook"
+tableName = "orderBook"
+tb = loadTable(dbName,tableName)
+
+tmp = select * from tb where order_book_id = `IC1801 order by datetime limit 10
+
+// 分区表 where
+update tb set open=open+5000 where order_book_id =`IC1801;
+tmp = select * from tb where order_book_id = `IC1801 order by datetime limit 10
+// 分区表 context by
+update tb set open=prev(open) context by datetime,order_book_id
+tmp = select * from tb where order_book_id = `IC1801 order by datetime limit 10 
+
+//元语言编程 sql update
+sqlUpdate(tb, <open+5000 as open>, where=<order_book_id = `IC1801>).eval()
+tmp = select * from tb where order_book_id = `IC1801 order by datetime limit 10 
+// example_1 function
+def f(t, sym,colName, updateValue,filterColumn, filterValue){
+    updateValues = sqlColAlias(expr(sqlCol(colName),+,updateValue),colName)
+    whereConditions = [<order_book_id=sym>,expr(sqlCol(filterColumn),>,filterValue)]
+    return sqlUpdate(t,updateValues,where = whereConditions).eval()
+    };
+f(tb,`IC1801,`high,500,`open,6000)
+tmp = select * from tb where order_book_id = `IC1801 order by datetime limit 10;
+//upsert!
+tmp = select* from tb where order_book_id = `IC1801 and datetime = 2018.01.02 09:29:00 
+newData = table(`IC1801 as order_book_id, 2018.01.02 09:29:00 as datetime,2022.08.07 as trading_date,
+                6700 as open,6293 as last,6293 as high,6293 as low,6259.4 as prev_settlement,6280.8 as prev_close,40 as volume,18848 as open_interest,50344000 as total_turnover,6885.2 as limit_up,5633.6 as limit_down,6293 as a1,0 as a2, 0 as a3, 0 as a4, 0 as a5,6288.4 as b1,0 as b2,0 as b3,
+                0 as b4,0 as b5,3 as a1_v, 0 as a2_v,0 as a3_v,0 as a4_v,0 as a5_v,5 as b1_v,0 as b2_v,0 as b3_v,0 as b4_v,0 as b5_v,0.0053679266383359625 as change_rate)
+upsert!(tb, newData, keyColNames=`datetime`order_book_id)
+
+
+//删除
+// 从分布式表删除指定条件的记录
+delete from tb where order_book_id=`IC1801;
+// 删除分布式表数据且where条件与数据行次序相关 即ID列
+//查找
+// k线计算
+
+
+//流式数据应用
+
+
